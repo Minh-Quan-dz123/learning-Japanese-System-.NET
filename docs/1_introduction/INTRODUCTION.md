@@ -12,7 +12,7 @@ Hệ thống giúp bạn luyện tập tiếng Nhật qua 3 hoạt động chín
 - ✍️ **Luyện viết tay** — hệ thống AI nhận diện chữ bạn viết
 - 📖 **Quản lý kho từ vựng** của riêng bạn, chia theo chủ đề
 
-Truy cập hệ thống tại: `https://<....>` *(cập nhật link thật khi deploy xong)*
+Truy cập hệ thống tại: `https://<địa-chỉ-web-của-bạn>` *(cập nhật link thật khi deploy xong)*
 
 ---
 

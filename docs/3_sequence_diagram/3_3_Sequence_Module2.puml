@@ -1,0 +1,34 @@
+@startuml Module2_WritingRecognize
+title Module 2: Luyện chính tả - Nhận diện chữ viết tay
+
+actor "User" as U
+participant "Frontend\n(Next.js)" as FE
+participant "Backend\n(ASP.NET 8 API)" as BE
+participant "AI Service\n(Python/FastAPI)" as AI
+
+U -> FE: Viết chữ lên canvas
+FE -> FE: Ghi lại mảng strokes\n[{x, y, t}, ...] song song lúc vẽ
+U -> FE: Bấm "Gửi" để nhận diện
+
+FE -> BE: POST /api/writing/recognize\nHeader: Authorization: Bearer <token>\nBody: { characterSet, strokes[] }
+activate BE
+
+BE -> AI: Forward strokes sang AI service\n(HTTP call nội bộ giữa 2 service)
+activate AI
+AI -> AI: Model nhận diện chữ viết tay\nchạy inference trên strokes
+AI --> BE: [{ char, confidence }, ...]\n(tối đa 2 kết quả)
+deactivate AI
+
+BE --> FE: 200 { candidates: [...] }
+deactivate BE
+
+FE --> U: Hiển thị 2 chữ AI đoán được\n(user tự đối chiếu, không chấm đúng/sai)
+
+note over BE, AI
+  Backend đóng vai trò "cổng trung gian" (gateway):
+  FE không gọi thẳng AI Service,
+  mà luôn đi qua Backend trước.
+  Giống việc 1 class Controller gọi 1 class Service khác,
+  chứ Frontend không được biết AI Service nằm ở đâu.
+end note
+@enduml

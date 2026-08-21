@@ -1,0 +1,42 @@
+@startuml Auth_Login
+title Auth: Login và dùng JWT cho các request sau
+
+actor "User" as U
+participant "Frontend\n(Next.js)" as FE
+participant "Backend\n(ASP.NET 8 API)" as BE
+database "PostgreSQL" as DB
+
+U -> FE: Nhập username/password, bấm Login
+FE -> BE: POST /api/auth/login\n{ username, password }
+activate BE
+
+BE -> DB: SELECT user WHERE username = ?
+activate DB
+DB --> BE: user (id, password_hash, role)
+deactivate DB
+
+BE -> BE: So sánh password với password_hash\n(dùng thuật toán hash, không so sánh chuỗi thô)
+
+alt Sai mật khẩu
+    BE --> FE: 401 Unauthorized
+    FE --> U: Hiện lỗi "Sai tài khoản/mật khẩu"
+else Đúng mật khẩu
+    BE -> BE: Tạo accessToken (JWT chứa userId, role)
+    BE -> DB: INSERT refresh_tokens (token_hash, user_id, expires_at)
+    activate DB
+    DB --> BE: OK
+    deactivate DB
+    BE --> FE: 200 { accessToken, user }
+    FE -> FE: Lưu accessToken (memory/cookie)
+    FE --> U: Chuyển vào trang chính
+end
+deactivate BE
+
+note over FE, BE
+  Từ đây, MỌI request khác của FE
+  đều đính kèm header:
+  Authorization: Bearer <accessToken>
+  Backend đọc userId/role từ token này,
+  KHÔNG tin bất kỳ userId nào FE gửi trong body/query.
+end note
+@enduml

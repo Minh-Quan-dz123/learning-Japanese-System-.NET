@@ -1,0 +1,57 @@
+@startuml Module3_AddVocabulary
+title Module 3: Thêm từ vựng - Check trùng + IDOR check
+
+actor "User" as U
+participant "Frontend\n(Next.js)" as FE
+participant "Backend\n(ASP.NET 8 API)" as BE
+database "PostgreSQL" as DB
+
+U -> FE: Nhập từ mới, bấm "Lưu"
+FE -> BE: POST /api/vocabularies/check-duplicate\n{ hiragana, katakana, kanji, romaji }
+activate BE
+BE -> BE: Lấy userId từ JWT
+BE -> DB: SELECT vocabularies\nJOIN topics ON topics.user_id = :userId\nWHERE (các trường chữ trùng)
+activate DB
+DB --> BE: Kết quả (có/không trùng)
+deactivate DB
+BE --> FE: { exists: true/false, existing? }
+deactivate BE
+
+alt Không trùng
+    FE -> BE: POST /api/vocabularies\n{ topicId, hiragana, ..., meaning }
+    activate BE
+    BE -> BE: Lấy userId từ JWT
+    BE -> DB: SELECT topics WHERE id = :topicId
+    activate DB
+    DB --> BE: topic (có cột user_id)
+    deactivate DB
+    BE -> BE: Kiểm tra topic.user_id == userId ?\n(chặn IDOR - không cho thêm từ\nvào topic của người khác)
+    alt topic không thuộc user này
+        BE --> FE: 403 Forbidden
+    else hợp lệ
+        BE -> DB: INSERT vocabularies (...)
+        activate DB
+        DB --> BE: OK
+        deactivate DB
+        BE --> FE: 201 Created
+    end
+    deactivate BE
+else Có trùng -> Hỏi user
+    FE --> U: "Từ đã tồn tại. Đè lên hay giữ từ cũ?"
+    U -> FE: Chọn "Đè lên"
+    FE -> BE: PUT /api/vocabularies/{existingId}\n{ hiragana, ..., meaning }
+    activate BE
+    BE -> DB: SELECT vocabularies JOIN topics\nWHERE vocab.id = :existingId
+    activate DB
+    DB --> BE: vocab + topic.user_id
+    deactivate DB
+    BE -> BE: Kiểm tra topic.user_id == userId ?
+    BE -> DB: UPDATE vocabularies SET ...
+    activate DB
+    DB --> BE: OK
+    deactivate DB
+    BE --> FE: 200 Updated
+    deactivate BE
+end
+FE --> U: Cập nhật danh sách từ vựng
+@enduml

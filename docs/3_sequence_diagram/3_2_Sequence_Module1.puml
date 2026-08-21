@@ -1,0 +1,44 @@
+@startuml Module1_PracticeSession
+title Module 1: Nộp bài quiz - Backend tự chấm điểm
+
+actor "User" as U
+participant "Frontend\n(Next.js)" as FE
+participant "Backend\n(ASP.NET 8 API)" as BE
+database "PostgreSQL" as DB
+
+U -> FE: Làm xong bài, bấm "Nộp bài"
+FE -> FE: Gom câu trả lời thô\n(chỉ có characterId + selectedCharacterId,\nKHÔNG tính đúng/sai ở FE)
+
+FE -> BE: POST /api/practice-sessions\nHeader: Authorization: Bearer <token>\nBody: { moduleType, direction, answers[] }
+activate BE
+
+BE -> BE: Giải mã JWT -> lấy userId
+BE -> DB: SELECT characters WHERE id IN (...)
+activate DB
+DB --> BE: Danh sách đáp án đúng
+deactivate DB
+
+BE -> BE: So sánh characterId với selectedCharacterId\ncho từng câu -> tính isCorrect, score
+
+BE -> DB: INSERT practice_sessions (user_id, score, ...)
+activate DB
+DB --> BE: session id
+deactivate DB
+
+BE -> DB: INSERT practice_answers (nhiều dòng,\nsession_id, character_id,\nselected_character_id, is_correct)
+activate DB
+DB --> BE: OK
+deactivate DB
+
+BE --> FE: 201 { id, score, totalQuestions, results[] }
+deactivate BE
+
+FE --> U: Hiển thị điểm số + review đúng/sai
+
+note over BE
+  Lý do bắt buộc chấm ở Backend:
+  nếu để FE tự chấm rồi gửi isCorrect lên,
+  user có thể sửa request (F12/Postman)
+  để gian lận điểm số.
+end note
+@enduml

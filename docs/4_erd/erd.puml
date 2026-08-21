@@ -1,0 +1,84 @@
+@startuml database_erd
+
+entity "users" as users {
+  * id : uuid <<PK>>
+  --
+  username : string
+  password_hash : string
+  role : string
+  created_at : timestamp
+}
+
+entity "refresh_tokens" as refresh_tokens {
+  * id : uuid <<PK>>
+  --
+  user_id : uuid <<FK>>
+  token_hash : string
+  expires_at : timestamp
+  revoked_at : timestamp
+}
+
+entity "characters" as characters {
+  * id : uuid <<PK>>
+  --
+  char : string
+  romaji : string
+  type : string
+  variant_group : string
+}
+
+entity "practice_sessions" as practice_sessions {
+  * id : uuid <<PK>>
+  --
+  user_id : uuid <<FK>>
+  module_type : string
+  direction : string
+  time_per_question_sec : int
+  max_mistakes : int
+  score : int
+  total_questions : int
+  created_at : timestamp
+}
+
+entity "practice_answers" as practice_answers {
+  * id : uuid <<PK>>
+  --
+  session_id : uuid <<FK>>
+  character_id : uuid <<FK>>
+  selected_character_id : uuid <<FK>>
+  is_correct : bool
+  answer_order : int
+}
+
+entity "topics" as topics {
+  * id : uuid <<PK>>
+  --
+  user_id : uuid <<FK>>
+  name : string
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "vocabularies" as vocabularies {
+  * id : uuid <<PK>>
+  --
+  topic_id : uuid <<FK>>
+  hiragana : string
+  katakana : string
+  kanji : string
+  romaji : string
+  meaning : string
+  note : string
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+users ||--o{ refresh_tokens
+users ||--o{ practice_sessions
+users ||--o{ topics
+practice_sessions ||--o{ practice_answers
+characters ||--o{ practice_answers : "character_id (câu hỏi)"
+characters ||--o{ practice_answers : "selected_character_id (lựa chọn)"
+topics ||--o{ vocabularies
+
+@enduml
