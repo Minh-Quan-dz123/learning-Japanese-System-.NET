@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="JapaneseLearning.Api/JapaneseLearning.Api.csproj" />
+  <Project Path="JapaneseLearning.Application/JapaneseLearning.Application.csproj" />
+  <Project Path="JapaneseLearning.Domain/JapaneseLearning.Domain.csproj" />
+  <Project Path="JapaneseLearning.Infrastructure/JapaneseLearning.Infrastructure.csproj" />
+</Solution>

@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+
+# Model nhận diện chữ viết tay (hiragana/katakana) sẽ thêm khi có quyết định
+# dùng thư viện/model cụ thể nào (chưa chốt trong tài liệu thiết kế hiện tại).

@@ -1,84 +1,159 @@
-@startuml database_erd
+@startuml erd
 
+' ============================================================
+' ERD — Hệ thống luyện tập tiếng Nhật
+' Nguồn: erd.md (cập nhật 2026-08-22)
+' Render thử: https://www.plantuml.com/plantuml/uml/ (paste nội dung file)
+' Hoặc dùng extension "PlantUML" trên VSCode để xem trực tiếp.
+' ============================================================
+
+hide circle
+skinparam linetype ortho
+skinparam roundcorner 8
+skinparam class {
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+}
+
+' ------------------------------------------------------------
+' Bảng: users
+' ------------------------------------------------------------
 entity "users" as users {
   * id : uuid <<PK>>
   --
-  username : string
-  password_hash : string
-  role : string
-  created_at : timestamp
+  * username : string <<unique>>
+  * password_hash : string
+  * role : string
+  * created_at : timestamp
 }
 
+' ------------------------------------------------------------
+' Bảng: refresh_tokens
+' ------------------------------------------------------------
 entity "refresh_tokens" as refresh_tokens {
   * id : uuid <<PK>>
   --
-  user_id : uuid <<FK>>
-  token_hash : string
-  expires_at : timestamp
-  revoked_at : timestamp
+  * user_id : uuid <<FK>>
+  * token_hash : string
+  * expires_at : timestamp
+  revoked_at : timestamp <<nullable>>
 }
 
+' ------------------------------------------------------------
+' Bảng: characters
+' ------------------------------------------------------------
 entity "characters" as characters {
   * id : uuid <<PK>>
   --
-  char : string
-  romaji : string
-  type : string
-  variant_group : string
+  * char : string
+  * romaji : string
+  * type : string
+  * variant_group : string
 }
 
+' ------------------------------------------------------------
+' Bảng: practice_sessions
+' ------------------------------------------------------------
 entity "practice_sessions" as practice_sessions {
   * id : uuid <<PK>>
   --
-  user_id : uuid <<FK>>
-  module_type : string
-  direction : string
-  time_per_question_sec : int
-  max_mistakes : int
-  score : int
-  total_questions : int
-  created_at : timestamp
+  * user_id : uuid <<FK>>
+  * module_type : string
+  * direction : string
+  * time_per_question_sec : int
+  * max_mistakes : int
+  * score : int
+  * total_questions : int
+  * created_at : timestamp
 }
 
+' ------------------------------------------------------------
+' Bảng: practice_answers
+' ------------------------------------------------------------
 entity "practice_answers" as practice_answers {
   * id : uuid <<PK>>
   --
-  session_id : uuid <<FK>>
-  character_id : uuid <<FK>>
-  selected_character_id : uuid <<FK>>
-  is_correct : bool
-  answer_order : int
+  * session_id : uuid <<FK>>
+  character_id : uuid <<FK, nullable>>
+  selected_character_id : uuid <<FK, nullable>>
+  * is_correct : bool
+  * answer_order : int
 }
 
+' ------------------------------------------------------------
+' Bảng: topics
+' ------------------------------------------------------------
 entity "topics" as topics {
   * id : uuid <<PK>>
   --
-  user_id : uuid <<FK>>
-  name : string
-  created_at : timestamp
-  updated_at : timestamp
+  * user_id : uuid <<FK>>
+  * name : string
+  * created_at : timestamp
+  * updated_at : timestamp
+  ..
+  <<unique>> (user_id, LOWER(TRIM(name)))
 }
 
+' ------------------------------------------------------------
+' Bảng: vocabularies
+' ------------------------------------------------------------
 entity "vocabularies" as vocabularies {
   * id : uuid <<PK>>
   --
-  topic_id : uuid <<FK>>
-  hiragana : string
-  katakana : string
-  kanji : string
-  romaji : string
-  meaning : string
-  note : string
-  created_at : timestamp
-  updated_at : timestamp
+  * topic_id : uuid <<FK>>
+  hiragana : string <<nullable>>
+  katakana : string <<nullable>>
+  kanji : string <<nullable>>
+  * romaji : string
+  * meaning : string
+  ..multi-value, phân tách bằng ";" hoặc "/"..
+  note : string <<nullable>>
+  * created_at : timestamp
+  * updated_at : timestamp
 }
 
-users ||--o{ refresh_tokens
-users ||--o{ practice_sessions
-users ||--o{ topics
-practice_sessions ||--o{ practice_answers
-characters ||--o{ practice_answers : "character_id (câu hỏi)"
-characters ||--o{ practice_answers : "selected_character_id (lựa chọn)"
-topics ||--o{ vocabularies
+' ============================================================
+' Quan hệ
+' ============================================================
+
+users ||--o{ refresh_tokens : "1 user có nhiều token\n(ON DELETE CASCADE)"
+users ||--o{ practice_sessions : "1 user có nhiều lượt chơi"
+users ||--o{ topics : "1 user có nhiều chủ đề"
+
+practice_sessions ||--o{ practice_answers : "1 lượt chơi có nhiều câu\n(ON DELETE CASCADE)"
+
+characters ||--o{ practice_answers : "character_id\n(ON DELETE SET NULL)"
+characters ||--o{ practice_answers : "selected_character_id\n(ON DELETE SET NULL)"
+
+topics ||--o{ vocabularies : "1 chủ đề có nhiều từ\n(ON DELETE CASCADE)"
+
+' ============================================================
+' Ghi chú thiết kế quan trọng (đối chiếu erd.md)
+' ============================================================
+note top of vocabularies
+  **romaji** và **meaning**: bắt buộc.
+  **meaning**: cho phép nhiều nghĩa,
+  cách nhau bởi ";" hoặc "/".
+  Check trùng: romaji giống nhau (trim+lowercase)
+  VÀ có ít nhất 1 nghĩa chung.
+end note
+
+note bottom of practice_answers
+  character_id / selected_character_id
+  nullable — NULL khi:
+  (1) user timeout không chọn kịp
+  (2) Admin đã xóa character đó
+  is_correct: Backend tự tính,
+  NULL → luôn là false
+end note
+
+note bottom of topics
+  Tên chủ đề không được trùng
+  trong cùng 1 user (so sánh
+  không phân biệt hoa/thường,
+  đã trim khoảng trắng 2 đầu).
+  Lưu trữ giữ nguyên bản gốc.
+end note
 
 @enduml

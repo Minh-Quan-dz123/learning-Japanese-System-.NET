@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jls_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jls_user
+      POSTGRES_PASSWORD: jls_password
+      POSTGRES_DB: japanese_learning
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jls_user -d japanese_learning"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: src/Api/Dockerfile
+  #   container_name: jls_backend
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     ConnectionStrings__Default: "Host=postgres;Database=japanese_learning;Username=jls_user;Password=jls_password"
+  #   ports:
+  #     - "5000:8080"
+  #   # Bật khi backend/src/Api có Dockerfile.
+
+  # ai_service:
+  #   build:
+  #     context: ./ai_service
+  #   container_name: jls_ai_service
+  #   ports:
+  #     - "8000:8000"
+  #   # Bật khi ai_service có Dockerfile.
+
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #   container_name: jls_frontend
+  #   depends_on:
+  #     - backend
+  #   ports:
+  #     - "3000:3000"
+  #   # Bật khi frontend có Dockerfile (sau khi đã chạy create-next-app).
+
+volumes:
+  postgres_data:

@@ -1,0 +1,2 @@
+# Thư mục này sẽ chứa các file workflow CI/CD (VD: backend-ci.yml, frontend-ci.yml, ai-service-ci.yml).
+# Git không track được thư mục rỗng nên cần file này tạm thời — xóa khi đã có workflow thật.
