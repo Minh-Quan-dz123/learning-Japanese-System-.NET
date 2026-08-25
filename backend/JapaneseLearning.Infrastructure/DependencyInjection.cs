@@ -19,6 +19,8 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<ICharacterRepository, CharacterRepository>();
         services.AddScoped<IPracticeSessionRepository, PracticeSessionRepository>();
+        services.AddScoped<ITopicRepository, TopicRepository>();
+        services.AddScoped<IVocabularyRepository, VocabularyRepository>();   // <-- MỚI THÊM
 
         return services;
     }
