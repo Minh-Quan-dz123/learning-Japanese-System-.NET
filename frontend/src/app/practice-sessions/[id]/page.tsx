@@ -40,70 +40,122 @@ export default function PracticeSessionDetailPage() {
     }
   }
 
-  if (isLoading) return <p className="p-6">Đang tải...</p>;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/50">Đang tải...</p>
+      </div>
+    );
+  }
   if (!user) {
     return (
-      <p className="p-6">
-        Bạn chưa đăng nhập. <Link href="/login" className="text-blue-600 underline">Đăng nhập</Link>
-      </p>
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/70">
+          Bạn chưa đăng nhập.{" "}
+          <Link href="/login" className="font-medium text-secondary hover:underline">
+            Đăng nhập
+          </Link>
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Link href="/practice-sessions" className="text-blue-600 underline text-sm">
-        ← Quay lại lịch sử
-      </Link>
+    <div className="min-h-screen bg-surface">
+      <div className="mx-auto max-w-2xl px-6 py-10">
+        <Link
+          href="/practice-sessions"
+          className="text-sm font-medium text-secondary transition hover:text-secondary-hover hover:underline"
+        >
+          ← Quay lại lịch sử
+        </Link>
 
-      {loading && <p className="mt-4">Đang tải...</p>}
-      {error && <p className="mt-4 text-red-600">{error}</p>}
-
-      {detail && (
-        <>
-          <h1 className="text-2xl font-bold mt-4 mb-1">
-            {DIRECTION_LABELS[detail.direction] ?? detail.direction}
-          </h1>
-          <p className="text-sm text-gray-500 mb-4">
-            {new Date(detail.createdAt).toLocaleString("vi-VN")} — Điểm{" "}
-            <strong>{detail.score}/{detail.totalQuestions}</strong>
+        {loading && (
+          <p className="mt-8 py-12 text-center text-sm text-foreground/50">Đang tải...</p>
+        )}
+        {error && (
+          <p className="mt-6 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
+            {error}
           </p>
+        )}
 
-          <div className="flex flex-col gap-2">
-            {detail.answers
-              .slice()
-              .sort((a, b) => a.answerOrder - b.answerOrder)
-              .map((a) => (
-                <div
-                  key={a.answerOrder}
-                  className={`border rounded px-4 py-3 flex justify-between items-center ${
-                    a.isCorrect ? "border-green-300 bg-green-50" : "border-red-300 bg-red-50"
-                  }`}
-                >
-                  <div>
-                    <div className="text-sm text-gray-500">Câu {a.answerOrder + 1}</div>
-                    <div className="text-lg">
-                      Đề bài:{" "}
-                      <strong>
-                        {a.character
-                          ? `${a.character.char} (${a.character.romaji})`
-                          : "(admin đã xóa chữ này)"}
-                      </strong>
+        {detail && (
+          <>
+            <p className="mt-6 text-xs font-bold uppercase tracking-wider text-secondary">
+              Review bài làm
+            </p>
+            <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+              <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+                {DIRECTION_LABELS[detail.direction] ?? detail.direction}
+              </h1>
+              <span className="text-2xl font-extrabold text-primary">
+                {detail.score}
+                <span className="text-base font-medium text-foreground/40">
+                  /{detail.totalQuestions}
+                </span>
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-foreground/50">
+              {new Date(detail.createdAt).toLocaleString("vi-VN")}
+            </p>
+
+            <div className="mt-6 flex flex-col gap-3">
+              {detail.answers
+                .slice()
+                .sort((a, b) => a.answerOrder - b.answerOrder)
+                .map((a) => (
+                  <div
+                    key={a.answerOrder}
+                    className={`flex items-center justify-between rounded-xl border px-5 py-4 ${
+                      a.isCorrect
+                        ? "border-success/30 bg-success/5"
+                        : "border-danger/30 bg-danger/5"
+                    }`}
+                  >
+                    <div>
+                      <div className="text-xs font-semibold text-foreground/40">
+                        Câu {a.answerOrder + 1}
+                      </div>
+                      <div className="mt-0.5 text-lg font-bold text-foreground">
+                        {a.character ? (
+                          <>
+                            {a.character.char}{" "}
+                            <span className="text-base font-medium text-foreground/50">
+                              ({a.character.romaji})
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-base font-medium italic text-foreground/40">
+                            (admin đã xóa chữ này)
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-sm text-foreground/60">
+                        Bạn chọn:{" "}
+                        <span className="font-medium">
+                          {a.selectedCharacter
+                            ? `${a.selectedCharacter.char} (${a.selectedCharacter.romaji})`
+                            : a.isCorrect
+                            ? "—"
+                            : "(không chọn kịp / chữ đã bị xóa)"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-sm">
-                      Bạn chọn:{" "}
-                      {a.selectedCharacter
-                        ? `${a.selectedCharacter.char} (${a.selectedCharacter.romaji})`
-                        : a.isCorrect
-                        ? "—"
-                        : "(không chọn kịp / chữ đã bị xóa)"}
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-bold ${
+                        a.isCorrect
+                          ? "bg-success/15 text-success"
+                          : "bg-danger/15 text-danger"
+                      }`}
+                    >
+                      {a.isCorrect ? "✓" : "✗"}
                     </div>
                   </div>
-                  <div className="text-xl">{a.isCorrect ? "✅" : "❌"}</div>
-                </div>
-              ))}
-          </div>
-        </>
-      )}
+                ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

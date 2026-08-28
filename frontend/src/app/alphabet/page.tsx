@@ -8,6 +8,7 @@ import { Direction, SubmitAnswerDto, PracticeSessionResultDto } from "@/types/pr
 import { getCharacters } from "@/lib/characterApi";
 import { submitPracticeSession } from "@/lib/practiceSessionApi";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { playSound } from "@/lib/sound";
 
 type Phase = "setup" | "playing" | "result";
 
@@ -42,17 +43,6 @@ function shuffle<T>(arr: T[]): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
-}
-
-// Phát 1 file mp3 trong public/sounds/ — không await, lỗi (VD trình duyệt chặn
-// autoplay lúc chưa có tương tác) chỉ log ngầm, không làm hỏng luồng chơi.
-function playSound(name: "correct" | "wrong" | "finish") {
-  try {
-    const audio = new Audio(`/sounds/${name}.mp3`);
-    void audio.play().catch(() => {});
-  } catch {
-    // môi trường không hỗ trợ Audio (VD SSR) — bỏ qua
-  }
 }
 
 // Feedback hiển thị ngay sau khi user bấm 1 đáp án, trước khi biết
@@ -285,114 +275,170 @@ export default function AlphabetPage() {
     setPhase("setup");
   }
 
-  if (isLoading) return <p className="p-6">Đang tải...</p>;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/50">Đang tải...</p>
+      </div>
+    );
+  }
   if (!user) {
     return (
-      <p className="p-6">
-        Bạn chưa đăng nhập. <Link href="/login" className="text-blue-600 underline">Đăng nhập</Link>
-      </p>
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/70">
+          Bạn chưa đăng nhập.{" "}
+          <Link href="/login" className="font-medium text-secondary hover:underline">
+            Đăng nhập
+          </Link>
+        </p>
+      </div>
     );
   }
 
   // ============================= PHASE: SETUP =============================
   if (phase === "setup") {
     return (
-      <div className="max-w-3xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-4">Luyện tập Bảng chữ cái</h1>
+      <div className="min-h-screen bg-surface">
+        <div className="mx-auto max-w-3xl px-6 py-10">
+          <p className="text-xs font-bold uppercase tracking-wider text-secondary">
+            Module 1
+          </p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">
+            Luyện tập Bảng chữ cái
+          </h1>
+          <p className="mt-2 text-sm text-foreground/60">
+            Chọn hướng chơi, bộ chữ muốn luyện và tùy chỉnh độ khó trước khi bắt đầu.
+          </p>
 
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Hướng chơi</label>
-          <select
-            value={direction}
-            onChange={(e) => handleDirectionChange(e.target.value as Direction)}
-            className="border rounded px-3 py-2"
-          >
-            {Object.entries(DIRECTION_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </div>
+          {/* Card: hướng chơi + bảng chữ cái */}
+          <div className="mt-8 rounded-xl border border-border bg-background p-6 shadow-sm">
+            <label className="mb-2 block text-sm font-semibold text-foreground">
+              Hướng chơi
+            </label>
+            <select
+              value={direction}
+              onChange={(e) => handleDirectionChange(e.target.value as Direction)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            >
+              {Object.entries(DIRECTION_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
 
-        <div className="flex gap-2 mb-3">
-          <button
-            onClick={() => selectGroup((v) => v === "Base")}
-            className="bg-gray-200 px-3 py-1 rounded text-sm"
-          >
-            Chọn chữ thường
-          </button>
-          <button
-            onClick={() => selectGroup((v) => v !== "Base")}
-            className="bg-gray-200 px-3 py-1 rounded text-sm"
-          >
-            Chọn tất cả biến âm
-          </button>
-          <button
-            onClick={() => selectGroup(() => true)}
-            className="bg-gray-200 px-3 py-1 rounded text-sm"
-          >
-            Chọn toàn bộ
-          </button>
-          <button
-            onClick={() => setSelectedCharIds(new Set())}
-            className="bg-gray-200 px-3 py-1 rounded text-sm"
-          >
-            Bỏ chọn hết
-          </button>
-        </div>
-
-        {loadingChars && <p>Đang tải bảng chữ cái...</p>}
-        {charError && <p className="text-red-600">{charError}</p>}
-
-        {!loadingChars && !charError && (
-          <div className="grid grid-cols-6 gap-2 mb-4">
-            {allCharacters.map((c) => (
+            <div className="mt-6 flex flex-wrap gap-2">
               <button
-                key={c.id}
-                onClick={() => toggleChar(c.id)}
-                className={`border rounded py-2 text-center ${
-                  selectedCharIds.has(c.id) ? "bg-blue-500 text-white" : "bg-white"
-                }`}
+                onClick={() => selectGroup((v) => v === "Base")}
+                className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-foreground/70 transition hover:border-primary hover:text-primary"
               >
-                <div className="text-lg">{c.char}</div>
-                <div className="text-xs">{c.romaji}</div>
+                Chữ thường
               </button>
-            ))}
-          </div>
-        )}
+              <button
+                onClick={() => selectGroup((v) => v !== "Base")}
+                className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-foreground/70 transition hover:border-primary hover:text-primary"
+              >
+                Tất cả biến âm
+              </button>
+              <button
+                onClick={() => selectGroup(() => true)}
+                className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-foreground/70 transition hover:border-primary hover:text-primary"
+              >
+                Chọn toàn bộ
+              </button>
+              <button
+                onClick={() => setSelectedCharIds(new Set())}
+                className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-foreground/70 transition hover:border-danger hover:text-danger"
+              >
+                Bỏ chọn hết
+              </button>
+            </div>
 
-        <p className="text-sm text-gray-600 mb-4">Đã chọn {selectedCharIds.size} chữ</p>
+            <div className="mt-5">
+              {loadingChars && (
+                <p className="py-8 text-center text-sm text-foreground/50">
+                  Đang tải bảng chữ cái...
+                </p>
+              )}
+              {charError && <p className="text-sm text-danger">{charError}</p>}
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Thời gian mỗi câu (giây, 0 = vô hạn)</label>
-            <input
-              type="number"
-              min={0}
-              value={timePerQuestionSec}
-              onChange={(e) => setTimePerQuestionSec(Number(e.target.value))}
-              className="border rounded px-3 py-2 w-full"
-            />
+              {!loadingChars && !charError && (
+                <div className="grid grid-cols-5 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                  {allCharacters.map((c) => {
+                    const selected = selectedCharIds.has(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => toggleChar(c.id)}
+                        className={`rounded-lg border py-2.5 text-center transition ${
+                          selected
+                            ? "border-primary bg-primary text-white shadow-sm"
+                            : "border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5"
+                        }`}
+                      >
+                        <div className="text-lg font-semibold">{c.char}</div>
+                        <div
+                          className={`text-xs ${
+                            selected ? "text-white/80" : "text-foreground/50"
+                          }`}
+                        >
+                          {c.romaji}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <p className="mt-4 text-sm font-medium text-foreground/60">
+              Đã chọn <span className="font-bold text-primary">{selectedCharIds.size}</span> chữ
+            </p>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Cho phép sai tối đa (mỗi câu)</label>
-            <input
-              type="number"
-              min={1}
-              value={maxMistakes}
-              onChange={(e) => setMaxMistakes(Number(e.target.value))}
-              className="border rounded px-3 py-2 w-full"
-            />
+
+          {/* Card: thời gian + số lần sai */}
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-background p-5 shadow-sm">
+              <label className="mb-2 block text-sm font-semibold text-foreground">
+                Thời gian mỗi câu (giây)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={timePerQuestionSec}
+                onChange={(e) => setTimePerQuestionSec(Number(e.target.value))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+              <p className="mt-1.5 text-xs text-foreground/50">0 = vô hạn thời gian</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background p-5 shadow-sm">
+              <label className="mb-2 block text-sm font-semibold text-foreground">
+                Cho phép sai tối đa (mỗi câu)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={maxMistakes}
+                onChange={(e) => setMaxMistakes(Number(e.target.value))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+              <p className="mt-1.5 text-xs text-foreground/50">Áp dụng riêng cho từng câu</p>
+            </div>
           </div>
+
+          {setupError && (
+            <p className="mt-4 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
+              {setupError}
+            </p>
+          )}
+
+          <button
+            onClick={handleStartQuiz}
+            className="mt-6 w-full rounded-lg bg-primary px-6 py-3 text-base font-bold text-white shadow-sm transition hover:bg-primary-hover sm:w-auto"
+          >
+            Bắt đầu luyện tập
+          </button>
         </div>
-
-        {setupError && <p className="text-red-600 mb-3">{setupError}</p>}
-
-        <button
-          onClick={handleStartQuiz}
-          className="bg-blue-600 text-white px-6 py-2 rounded font-medium"
-        >
-          Bắt đầu
-        </button>
       </div>
     );
   }
@@ -400,95 +446,163 @@ export default function AlphabetPage() {
   // ============================= PHASE: PLAYING =============================
   if (phase === "playing") {
     const currentQuestion = questions[currentIndex];
+    const progress = (currentIndex / questions.length) * 100;
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-sm text-gray-600">
-            Câu {currentIndex + 1}/{questions.length} — Sai {questionMistakes}/{maxMistakes}
-          </span>
-          {timePerQuestionSec > 0 && (
-            <span className="text-sm font-medium">{timeLeft}s</span>
-          )}
-          <button onClick={handleEndEarly} className="text-red-600 text-sm">
-            Kết thúc
-          </button>
-        </div>
+      <div className="min-h-screen bg-surface">
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          {/* Thanh tiến độ */}
+          <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-border">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
 
-        <div className="text-center text-6xl font-bold mb-2">
-          {getQuestionText(currentQuestion, direction)}
-        </div>
-
-        {/* Feedback đúng/sai ngay sau khi bấm, trước khi chuyển bước tiếp theo */}
-        <div className="text-center h-6 mb-6">
-          {feedback && (
-            <span className={feedback.isCorrect ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-              {feedback.isCorrect
-                ? "Chính xác!"
-                : questionMistakes + 1 < maxMistakes
-                ? "Sai rồi, thử lại!"
-                : "Sai rồi!"}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-medium text-foreground/60">
+              Câu <span className="font-bold text-foreground">{currentIndex + 1}</span>/
+              {questions.length}
+              {" · "}Sai {questionMistakes}/{maxMistakes}
             </span>
+            <div className="flex items-center gap-3">
+              {timePerQuestionSec > 0 && (
+                <span
+                  className={`rounded-full px-3 py-1 text-sm font-bold ${
+                    timeLeft <= 5 ? "bg-danger/10 text-danger" : "bg-secondary/10 text-secondary"
+                  }`}
+                >
+                  {timeLeft}s
+                </span>
+              )}
+              <button
+                onClick={handleEndEarly}
+                className="text-sm font-medium text-danger transition hover:underline"
+              >
+                Kết thúc
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background px-8 py-12 text-center shadow-sm">
+            <div className="text-6xl font-extrabold text-foreground">
+              {getQuestionText(currentQuestion, direction)}
+            </div>
+
+            {/* Feedback đúng/sai ngay sau khi bấm, trước khi chuyển bước tiếp theo */}
+            <div className="mt-4 h-6">
+              {feedback && (
+                <span
+                  className={`text-sm font-bold ${
+                    feedback.isCorrect ? "text-success" : "text-danger"
+                  }`}
+                >
+                  {feedback.isCorrect
+                    ? "✓ Chính xác!"
+                    : questionMistakes + 1 < maxMistakes
+                    ? "Sai rồi, thử lại!"
+                    : "Sai rồi!"}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {currentOptions.map((c) => {
+              const isSelected = feedback?.selectedId === c.id;
+              const isCorrectAnswer = c.id === currentQuestion.id;
+              // Trong lúc hiện feedback: tô xanh lá đáp án đúng, tô đỏ đáp án vừa chọn sai
+              let extraClass =
+                "border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5";
+              if (feedback) {
+                if (isCorrectAnswer && feedback.isCorrect)
+                  extraClass = "border-success bg-success text-white";
+                else if (isSelected && !feedback.isCorrect)
+                  extraClass = "border-danger bg-danger text-white";
+              }
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => handleSelectOption(c.id)}
+                  disabled={isSubmitting || feedback !== null}
+                  className={`rounded-lg border-2 py-4 text-lg font-semibold transition disabled:opacity-90 ${extraClass}`}
+                >
+                  {getOptionText(c, direction)}
+                </button>
+              );
+            })}
+          </div>
+
+          {isSubmitting && (
+            <p className="mt-6 text-center text-sm text-foreground/50">Đang nộp bài...</p>
+          )}
+          {submitError && (
+            <p className="mt-6 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-center text-sm text-danger">
+              {submitError}
+            </p>
           )}
         </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          {currentOptions.map((c) => {
-            const isSelected = feedback?.selectedId === c.id;
-            const isCorrectAnswer = c.id === currentQuestion.id;
-            // Trong lúc hiện feedback: tô xanh đáp án đúng, tô đỏ đáp án vừa chọn sai
-            let extraClass = "hover:bg-blue-50";
-            if (feedback) {
-              if (isCorrectAnswer && feedback.isCorrect) extraClass = "bg-green-500 text-white";
-              else if (isSelected && !feedback.isCorrect) extraClass = "bg-red-500 text-white";
-            }
-            return (
-              <button
-                key={c.id}
-                onClick={() => handleSelectOption(c.id)}
-                disabled={isSubmitting || feedback !== null}
-                className={`border rounded py-3 text-lg disabled:opacity-90 ${extraClass}`}
-              >
-                {getOptionText(c, direction)}
-              </button>
-            );
-          })}
-        </div>
-
-        {isSubmitting && <p className="text-center mt-4 text-gray-500">Đang nộp bài...</p>}
-        {submitError && <p className="text-center mt-4 text-red-600">{submitError}</p>}
       </div>
     );
   }
 
   // ============================= PHASE: RESULT =============================
   return (
-    <div className="max-w-xl mx-auto p-6 text-center">
-      <h1 className="text-2xl font-bold mb-4">Kết quả</h1>
-      {result && (
-        <p className="text-4xl font-bold mb-6">
-          {result.score}/{result.totalQuestions}
-        </p>
-      )}
-      <div className="flex gap-3 justify-center">
-        <button onClick={handlePlaySame} className="bg-blue-600 text-white px-4 py-2 rounded">
-          Chơi lại ván này
-        </button>
-        <button onClick={handlePlayNew} className="bg-gray-200 px-4 py-2 rounded">
-          Chơi ván mới
-        </button>
-      </div>
-      <div className="flex gap-4 justify-center mt-4 text-sm">
+    <div className="min-h-screen bg-surface">
+      <div className="mx-auto max-w-xl px-6 py-16 text-center">
+        <p className="text-xs font-bold uppercase tracking-wider text-secondary">Kết quả</p>
+        <h1 className="mt-1 text-2xl font-extrabold text-foreground">
+          Hoàn thành lượt luyện tập
+        </h1>
+
         {result && (
-          <Link href={`/practice-sessions/${result.id}`} className="text-blue-600 underline">
-            Review bài làm
-          </Link>
+          <div className="mt-8 inline-flex flex-col items-center rounded-2xl border border-border bg-background px-12 py-8 shadow-sm">
+            <span className="text-5xl font-extrabold text-primary">
+              {result.score}
+              <span className="text-foreground/30">/{result.totalQuestions}</span>
+            </span>
+            <span className="mt-2 text-sm font-medium text-foreground/50">
+              câu trả lời đúng
+            </span>
+          </div>
         )}
-        <Link href="/practice-sessions" className="text-blue-600 underline">
-          Lịch sử luyện tập
-        </Link>
-        <Link href="/practice-sessions/stats" className="text-blue-600 underline">
-          Thống kê tỉ lệ sai
-        </Link>
+
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <button
+            onClick={handlePlaySame}
+            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover"
+          >
+            Chơi lại ván này
+          </button>
+          <button
+            onClick={handlePlayNew}
+            className="rounded-lg border border-border px-5 py-2.5 text-sm font-bold text-foreground/70 transition hover:border-primary hover:text-primary"
+          >
+            Chơi ván mới
+          </button>
+        </div>
+
+        <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+          {result && (
+            <Link
+              href={`/practice-sessions/${result.id}`}
+              className="font-medium text-secondary transition hover:text-secondary-hover hover:underline"
+            >
+              Review bài làm
+            </Link>
+          )}
+          <Link
+            href="/practice-sessions"
+            className="font-medium text-secondary transition hover:text-secondary-hover hover:underline"
+          >
+            Lịch sử luyện tập
+          </Link>
+          <Link
+            href="/practice-sessions/stats"
+            className="font-medium text-secondary transition hover:text-secondary-hover hover:underline"
+          >
+            Thống kê tỉ lệ sai
+          </Link>
+        </div>
       </div>
     </div>
   );

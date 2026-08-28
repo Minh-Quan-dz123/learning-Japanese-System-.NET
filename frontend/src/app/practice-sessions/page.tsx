@@ -44,78 +44,126 @@ export default function PracticeSessionsPage() {
     }
   }
 
-  if (isLoading) return <p className="p-6">Đang tải...</p>;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/50">Đang tải...</p>
+      </div>
+    );
+  }
   if (!user) {
     return (
-      <p className="p-6">
-        Bạn chưa đăng nhập. <Link href="/login" className="text-blue-600 underline">Đăng nhập</Link>
-      </p>
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/70">
+          Bạn chưa đăng nhập.{" "}
+          <Link href="/login" className="font-medium text-secondary hover:underline">
+            Đăng nhập
+          </Link>
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Lịch sử luyện tập</h1>
-        <div className="flex gap-3">
-          <Link href="/practice-sessions/stats" className="text-blue-600 underline text-sm">
-            Xem thống kê tỉ lệ sai
-          </Link>
-          <Link href="/alphabet" className="text-blue-600 underline text-sm">
-            Luyện tập ngay
-          </Link>
-        </div>
-      </div>
-
-      {loading && <p>Đang tải...</p>}
-      {error && <p className="text-red-600">{error}</p>}
-      {!loading && !error && sessions.length === 0 && (
-        <p className="text-gray-500">Chưa có lượt luyện tập nào.</p>
-      )}
-
-      {!loading && !error && sessions.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {sessions.map((s) => (
+    <div className="min-h-screen bg-surface">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-secondary">
+              Module 1
+            </p>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">
+              Lịch sử luyện tập
+            </h1>
+          </div>
+          <div className="flex gap-4 text-sm">
             <Link
-              key={s.id}
-              href={`/practice-sessions/${s.id}`}
-              className="border rounded px-4 py-3 flex justify-between items-center hover:bg-gray-50"
+              href="/practice-sessions/stats"
+              className="font-medium text-secondary transition hover:text-secondary-hover hover:underline"
             >
-              <div>
-                <div className="font-medium">{DIRECTION_LABELS[s.direction] ?? s.direction}</div>
-                <div className="text-sm text-gray-500">
-                  {new Date(s.createdAt).toLocaleString("vi-VN")}
-                </div>
-              </div>
-              <div className="text-lg font-bold">
-                {s.score}/{s.totalQuestions}
-              </div>
+              Xem thống kê tỉ lệ sai
             </Link>
-          ))}
+            <Link
+              href="/alphabet"
+              className="font-medium text-primary transition hover:text-primary-hover hover:underline"
+            >
+              Luyện tập ngay
+            </Link>
+          </div>
         </div>
-      )}
 
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-6">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="border rounded px-3 py-1 disabled:opacity-40"
-          >
-            Trước
-          </button>
-          <span className="px-2 py-1 text-sm">
-            Trang {page}/{totalPages}
-          </span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className="border rounded px-3 py-1 disabled:opacity-40"
-          >
-            Sau
-          </button>
-        </div>
-      )}
+        {loading && (
+          <p className="py-12 text-center text-sm text-foreground/50">Đang tải...</p>
+        )}
+        {error && (
+          <p className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
+            {error}
+          </p>
+        )}
+        {!loading && !error && sessions.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border bg-background px-6 py-12 text-center">
+            <p className="text-sm text-foreground/50">Chưa có lượt luyện tập nào.</p>
+            <Link
+              href="/alphabet"
+              className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
+            >
+              Bắt đầu luyện tập đầu tiên →
+            </Link>
+          </div>
+        )}
+
+        {!loading && !error && sessions.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {sessions.map((s) => {
+              const ratio = s.totalQuestions > 0 ? s.score / s.totalQuestions : 0;
+              const scoreColor =
+                ratio >= 0.8 ? "text-success" : ratio >= 0.5 ? "text-secondary" : "text-danger";
+              return (
+                <Link
+                  key={s.id}
+                  href={`/practice-sessions/${s.id}`}
+                  className="flex items-center justify-between rounded-xl border border-border bg-background px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+                >
+                  <div>
+                    <div className="font-bold text-foreground">
+                      {DIRECTION_LABELS[s.direction] ?? s.direction}
+                    </div>
+                    <div className="mt-0.5 text-sm text-foreground/50">
+                      {new Date(s.createdAt).toLocaleString("vi-VN")}
+                    </div>
+                  </div>
+                  <div className={`text-xl font-extrabold ${scoreColor}`}>
+                    {s.score}
+                    <span className="text-foreground/30">/{s.totalQuestions}</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground/70 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-foreground/70"
+            >
+              ← Trước
+            </button>
+            <span className="text-sm font-medium text-foreground/60">
+              Trang {page}/{totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground/70 transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-foreground/70"
+            >
+              Sau →
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

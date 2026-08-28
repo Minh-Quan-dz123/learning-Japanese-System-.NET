@@ -15,6 +15,7 @@ import {
 } from "@/types/vocabulary";
 import { splitMeanings } from "@/lib/meaningParser";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { playSound } from "@/lib/sound";
 
 type Phase = "setup" | "confirmPartial" | "playing" | "result";
 
@@ -32,6 +33,18 @@ const ALL_FIELDS: PracticeField[] = ["Hiragana", "Katakana", "Kanji", "Romaji", 
 const FEEDBACK_DELAY_MS = 900;
 const MAX_HINT_OPTIONS = 12;
 
+// Khắc phục CỤC BỘ (chỉ trong file này) vấn đề font Nunito không có glyph tiếng Nhật:
+// nếu chuỗi chứa ký tự Hiragana/Katakana/Kanji, tự chuyển sang font hệ thống có hỗ trợ
+// tiếng Nhật thay vì để trình duyệt fallback lung tung. Không ảnh hưởng chữ Việt/Latin.
+const JP_UNICODE_RANGE = /[\u3040-\u30ff\u3400-\u9fff]/;
+function jpFontStyle(text: string): React.CSSProperties {
+  if (!JP_UNICODE_RANGE.test(text)) return {};
+  return {
+    fontFamily:
+      '"Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif',
+  };
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -39,16 +52,6 @@ function shuffle<T>(arr: T[]): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
-}
-
-// Trùng logic với alphabet/page.tsx — chưa tách ra file dùng chung, xem ghi chú cuối câu trả lời.
-function playSound(name: "correct" | "wrong" | "finish") {
-  try {
-    const audio = new Audio(`/sounds/${name}.mp3`);
-    void audio.play().catch(() => {});
-  } catch {
-    // môi trường không hỗ trợ Audio (VD SSR) — bỏ qua
-  }
 }
 
 function getFieldValue(word: VocabularyDto, field: PracticeField): string {
@@ -398,147 +401,221 @@ export default function VocabularyPracticePage() {
     return { total: entries.length, correct, wrong: entries.length - correct };
   }, [finalizedMap]);
 
-  if (isLoading) return <p className="p-6">Đang tải...</p>;
+  // Thuần hiển thị: % đúng + màu tương ứng cho vòng tròn điểm số ở màn Result.
+  // Ngưỡng màu giống hệt quy ước đã dùng ở practice-sessions/page.tsx (Module 1).
+  const resultPercent = resultStats.total > 0 ? Math.round((resultStats.correct / resultStats.total) * 100) : 0;
+  const resultColorClass =
+    resultPercent >= 80 ? "text-success" : resultPercent >= 50 ? "text-secondary" : "text-danger";
+  const resultRingClass =
+    resultPercent >= 80 ? "border-success" : resultPercent >= 50 ? "border-secondary" : "border-danger";
+
+  const progressDone = Object.keys(finalizedMap).length;
+  const progressPercent = gameWords.length > 0 ? (progressDone / gameWords.length) * 100 : 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/50">Đang tải...</p>
+      </div>
+    );
+  }
   if (!user) {
     return (
-      <p className="p-6">
-        Bạn chưa đăng nhập. <Link href="/login" className="text-blue-600 underline">Đăng nhập</Link>
-      </p>
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <p className="text-sm text-foreground/70">
+          Bạn chưa đăng nhập.{" "}
+          <Link href="/login" className="font-medium text-secondary hover:underline">
+            Đăng nhập
+          </Link>
+        </p>
+      </div>
     );
   }
 
   // ============================= PHASE: SETUP =============================
   if (phase === "setup") {
     return (
-      <div className="max-w-3xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-4">Luyện tập điền đáp án</h1>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Chọn chủ đề</label>
-          {loadingTopics && <p>Đang tải danh sách chủ đề...</p>}
-          {topicsError && <p className="text-red-600">{topicsError}</p>}
-          {!loadingTopics && !topicsError && (
-            <div className="flex flex-wrap gap-2">
-              {allTopics.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => toggleTopic(t.id)}
-                  className={`border rounded px-3 py-1 text-sm ${
-                    selectedTopicIds.has(t.id) ? "bg-blue-500 text-white" : "bg-white"
-                  }`}
-                >
-                  {t.name}
-                </button>
-              ))}
-              {allTopics.length === 0 && <p className="text-sm text-gray-500">Chưa có chủ đề nào.</p>}
+      <div className="min-h-screen bg-surface">
+        <div className="mx-auto max-w-3xl px-6 py-10">
+          {/* ===== Hero — điểm nhấn: watermark kanji, giống phong cách topics/page.tsx ===== */}
+          <div className="relative mb-8 overflow-hidden rounded-2xl border border-border bg-background px-6 py-8 shadow-sm sm:px-8">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-4 -top-6 select-none text-[9rem] font-black leading-none text-primary/[0.06] sm:text-[11rem]"
+            >
+              答
+            </span>
+            <div className="relative">
+              <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                Module 3
+              </p>
+              <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">
+                Luyện tập điền đáp án
+              </h1>
+              <p className="mt-1 text-sm text-foreground/50">
+                Chọn chủ đề, chọn chiều câu hỏi và bắt đầu luyện gõ đáp án.
+              </p>
             </div>
+          </div>
+
+          {/* ===== Chọn chủ đề ===== */}
+          <div className="mb-5 rounded-2xl border border-border bg-background p-5 shadow-sm">
+            <h2 className="mb-3 font-bold text-foreground">Chọn chủ đề</h2>
+            {loadingTopics && <p className="text-sm text-foreground/50">Đang tải danh sách chủ đề...</p>}
+            {topicsError && <p className="text-sm text-danger">{topicsError}</p>}
+            {!loadingTopics && !topicsError && (
+              <div className="flex flex-wrap gap-2">
+                {allTopics.map((t) => {
+                  const selected = selectedTopicIds.has(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => toggleTopic(t.id)}
+                      className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${
+                        selected
+                          ? "border-primary bg-primary text-white shadow-sm"
+                          : "border-border bg-background text-foreground/70 hover:border-primary/40 hover:text-primary"
+                      }`}
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+                {allTopics.length === 0 && (
+                  <p className="text-sm text-foreground/50">Chưa có chủ đề nào.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ===== Chiều câu hỏi / câu trả lời ===== */}
+          <div className="mb-5 grid grid-cols-2 gap-4 rounded-2xl border border-border bg-background p-5 shadow-sm">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-foreground/60">
+                Câu hỏi (hiện ra)
+              </label>
+              <select
+                value={questionField}
+                onChange={(e) => setQuestionField(e.target.value as PracticeField)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                {ALL_FIELDS.map((f) => (
+                  <option key={f} value={f}>{FIELD_LABELS[f]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-foreground/60">
+                Câu trả lời (gõ đáp án)
+              </label>
+              <select
+                value={answerField}
+                onChange={(e) => setAnswerField(e.target.value as PracticeField)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                {ALL_FIELDS.map((f) => (
+                  <option key={f} value={f}>{FIELD_LABELS[f]}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* ===== Nguồn từ vựng ===== */}
+          <div className="mb-5 rounded-2xl border border-border bg-background p-5 shadow-sm">
+            <h2 className="mb-3 font-bold text-foreground">Nguồn từ vựng</h2>
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  checked={sourceType === "All"}
+                  onChange={() => setSourceType("All")}
+                  className="accent-primary"
+                />
+                Toàn bộ từ trong các chủ đề đã chọn
+              </label>
+              <label className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  checked={sourceType === "PercentRecent"}
+                  onChange={() => setSourceType("PercentRecent")}
+                  className="accent-primary"
+                />
+                <span>Lấy</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={percent}
+                  disabled={sourceType !== "PercentRecent"}
+                  onChange={(e) => setPercent(Number(e.target.value))}
+                  className="w-20 rounded-lg border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary disabled:opacity-40"
+                />
+                <span>% từ sửa gần nhất</span>
+              </label>
+              <label className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  checked={sourceType === "CountRecent"}
+                  onChange={() => setSourceType("CountRecent")}
+                  className="accent-primary"
+                />
+                <span>Lấy</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={count}
+                  disabled={sourceType !== "CountRecent"}
+                  onChange={(e) => setCount(Number(e.target.value))}
+                  className="w-20 rounded-lg border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary disabled:opacity-40"
+                />
+                <span>từ sửa gần nhất</span>
+              </label>
+            </div>
+          </div>
+
+          {/* ===== Thời gian / số lần sai ===== */}
+          <div className="mb-5 grid grid-cols-2 gap-4 rounded-2xl border border-border bg-background p-5 shadow-sm">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-foreground/60">
+                Thời gian mỗi câu (giây, 0 = vô hạn, tối thiểu 3 nếu &gt; 0)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={timePerQuestionSec}
+                onChange={(e) => setTimePerQuestionSec(Number(e.target.value))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-foreground/60">
+                Cho phép sai tối đa (mỗi câu)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={maxMistakes}
+                onChange={(e) => setMaxMistakes(Number(e.target.value))}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+
+          {setupError && (
+            <p className="mb-4 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
+              {setupError}
+            </p>
           )}
+
+          {/* ===== CTA — điểm nhấn: nút gradient full-width ===== */}
+          <button
+            onClick={handlePrepare}
+            disabled={isPreparing}
+            className="w-full rounded-xl bg-gradient-to-r from-primary to-secondary px-6 py-3.5 text-base font-bold text-white shadow-sm transition hover:shadow-lg disabled:opacity-50"
+          >
+            {isPreparing ? "Đang chuẩn bị..." : "Bắt đầu luyện tập"}
+          </button>
         </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Câu hỏi (hiện ra)</label>
-            <select
-              value={questionField}
-              onChange={(e) => setQuestionField(e.target.value as PracticeField)}
-              className="border rounded px-3 py-2 w-full"
-            >
-              {ALL_FIELDS.map((f) => (
-                <option key={f} value={f}>{FIELD_LABELS[f]}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Câu trả lời (gõ đáp án)</label>
-            <select
-              value={answerField}
-              onChange={(e) => setAnswerField(e.target.value as PracticeField)}
-              className="border rounded px-3 py-2 w-full"
-            >
-              {ALL_FIELDS.map((f) => (
-                <option key={f} value={f}>{FIELD_LABELS[f]}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Nguồn từ vựng</label>
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2">
-              <input type="radio" checked={sourceType === "All"} onChange={() => setSourceType("All")} />
-              Toàn bộ từ trong các chủ đề đã chọn
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={sourceType === "PercentRecent"}
-                onChange={() => setSourceType("PercentRecent")}
-              />
-              <span>Lấy</span>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                value={percent}
-                disabled={sourceType !== "PercentRecent"}
-                onChange={(e) => setPercent(Number(e.target.value))}
-                className="border rounded px-2 py-1 w-20"
-              />
-              <span>% từ sửa gần nhất</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={sourceType === "CountRecent"}
-                onChange={() => setSourceType("CountRecent")}
-              />
-              <span>Lấy</span>
-              <input
-                type="number"
-                min={1}
-                value={count}
-                disabled={sourceType !== "CountRecent"}
-                onChange={(e) => setCount(Number(e.target.value))}
-                className="border rounded px-2 py-1 w-20"
-              />
-              <span>từ sửa gần nhất</span>
-            </label>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Thời gian mỗi câu (giây, 0 = vô hạn, tối thiểu 3 nếu &gt; 0)</label>
-            <input
-              type="number"
-              min={0}
-              value={timePerQuestionSec}
-              onChange={(e) => setTimePerQuestionSec(Number(e.target.value))}
-              className="border rounded px-3 py-2 w-full"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Cho phép sai tối đa (mỗi câu)</label>
-            <input
-              type="number"
-              min={1}
-              value={maxMistakes}
-              onChange={(e) => setMaxMistakes(Number(e.target.value))}
-              className="border rounded px-3 py-2 w-full"
-            />
-          </div>
-        </div>
-
-        {setupError && <p className="text-red-600 mb-3">{setupError}</p>}
-
-        <button
-          onClick={handlePrepare}
-          disabled={isPreparing}
-          className="bg-blue-600 text-white px-6 py-2 rounded font-medium disabled:opacity-50"
-        >
-          {isPreparing ? "Đang chuẩn bị..." : "Bắt đầu"}
-        </button>
       </div>
     );
   }
@@ -546,21 +623,28 @@ export default function VocabularyPracticePage() {
   // ============================= PHASE: CONFIRM PARTIAL =============================
   if (phase === "confirmPartial" && prepareResult) {
     return (
-      <div className="max-w-md mx-auto p-6 text-center">
-        <p className="mb-6">
-          Chỉ có <strong>{prepareResult.totalEligible}</strong>/{prepareResult.totalConsidered} từ đủ điều kiện
-          (đủ cả trường câu hỏi lẫn câu trả lời). Bạn có muốn luyện tập với số từ đó không?
-        </p>
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={() => startGame(prepareResult.words)}
-            className="bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            Luyện tập với {prepareResult.totalEligible} từ
-          </button>
-          <button onClick={() => setPhase("setup")} className="bg-gray-200 px-4 py-2 rounded">
-            Chọn lại
-          </button>
+      <div className="flex min-h-screen items-center justify-center bg-surface px-6">
+        <div className="w-full max-w-md rounded-2xl border border-warning bg-background p-6 text-center shadow-sm">
+          <p className="mb-6 text-sm text-foreground">
+            Chỉ có{" "}
+            <strong className="text-warning">{prepareResult.totalEligible}</strong>/
+            {prepareResult.totalConsidered} từ đủ điều kiện (đủ cả trường câu hỏi lẫn câu
+            trả lời). Bạn có muốn luyện tập với số từ đó không?
+          </p>
+          <div className="flex justify-center gap-3">
+            <button
+              onClick={() => startGame(prepareResult.words)}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover"
+            >
+              Luyện tập với {prepareResult.totalEligible} từ
+            </button>
+            <button
+              onClick={() => setPhase("setup")}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground/70 transition hover:text-foreground"
+            >
+              Chọn lại
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -569,139 +653,232 @@ export default function VocabularyPracticePage() {
   // ============================= PHASE: PLAYING =============================
   if (phase === "playing" && currentWord) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-          <span className="text-sm text-gray-600">
-            Đã chốt {Object.keys(finalizedMap).length}/{gameWords.length} — Sai {currentMistakes}/{maxMistakes}
-          </span>
-          {timePerQuestionSec > 0 && <span className="text-sm font-medium">{timeLeft}s</span>}
-          <button onClick={handleEndEarly} className="text-red-600 text-sm">
-            Kết thúc
-          </button>
-        </div>
-
-        {allowJump && (
-          <div className="flex flex-wrap gap-1 mb-4">
-            {gameWords.map((_, idx) => {
-              const done = finalizedMap[idx];
-              let cls = "bg-gray-100";
-              if (idx === currentIndex) cls = "bg-blue-500 text-white";
-              else if (done) cls = done.isCorrect ? "bg-green-200" : "bg-red-200";
-              return (
-                <button
-                  key={idx}
-                  onClick={() => handleJumpTo(idx)}
-                  className={`w-8 h-8 text-xs rounded ${cls}`}
-                >
-                  {idx + 1}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="text-center text-4xl font-bold mb-2 break-words">
-          {getFieldValue(currentWord, questionField)}
-        </div>
-        <p className="text-center text-sm text-gray-500 mb-6">
-          Điền: {FIELD_LABELS[answerField]}
-          {answerField === "Meaning" && " (chỉ cần đúng 1 trong các nghĩa)"}
-        </p>
-
-        <div className="text-center h-6 mb-4">
-          {feedback && (
-            <span className={feedback.isCorrect ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-              {feedback.isCorrect
-                ? "Chính xác!"
-                : currentMistakes + 1 < maxMistakes
-                ? "Sai rồi, thử lại!"
-                : `Sai rồi! Đáp án đúng: ${feedback.correctDisplay}`}
+      <div className="min-h-screen bg-surface">
+        <div className="mx-auto max-w-2xl px-6 py-8">
+          {/* ===== Thanh trạng thái + progress bar + nút Kết thúc dạng pill ===== */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm text-foreground/60">
+              Đã chốt <strong className="text-foreground">{progressDone}</strong>/{gameWords.length} — Sai{" "}
+              <strong className="text-foreground">{currentMistakes}</strong>/{maxMistakes}
             </span>
+            <div className="flex items-center gap-2">
+              {timePerQuestionSec > 0 && (
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-sm font-bold ${
+                    timeLeft <= 5 ? "bg-danger/10 text-danger" : "bg-primary/10 text-primary"
+                  }`}
+                >
+                  {timeLeft}s
+                </span>
+              )}
+              <button
+                onClick={handleEndEarly}
+                className="flex items-center gap-1 rounded-full border border-danger/30 bg-danger/5 px-3 py-1 text-xs font-bold text-danger transition hover:bg-danger/10"
+              >
+                <span aria-hidden="true">⏹</span> Kết thúc
+              </button>
+            </div>
+          </div>
+          <div className="mb-5 h-2 w-full overflow-hidden rounded-full bg-border">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          {/* ===== Grid nhảy cóc câu ===== */}
+          {allowJump && (
+            <div className="mb-5 flex flex-wrap gap-1.5">
+              {gameWords.map((_, idx) => {
+                const done = finalizedMap[idx];
+                let cls = "border border-border bg-background text-foreground/50";
+                if (idx === currentIndex) cls = "bg-primary text-white shadow-sm";
+                else if (done)
+                  cls = done.isCorrect
+                    ? "bg-success/15 text-success"
+                    : "bg-danger/15 text-danger";
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => handleJumpTo(idx)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold transition ${cls}`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ===== Khối câu hỏi — điểm nhấn chính: nền gradient ĐẶC, chữ trắng ===== */}
+          <div className="mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-secondary px-6 py-10 text-center shadow-md">
+            <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+              {FIELD_LABELS[questionField]}
+            </span>
+            <div
+              className="mt-4 break-words text-5xl font-extrabold text-white"
+              style={jpFontStyle(getFieldValue(currentWord, questionField))}
+            >
+              {getFieldValue(currentWord, questionField)}
+            </div>
+            <p className="mt-4 text-sm text-white/80">
+              Điền: <strong className="text-white">{FIELD_LABELS[answerField]}</strong>
+              {answerField === "Meaning" && " (chỉ cần đúng 1 trong các nghĩa)"}
+            </p>
+          </div>
+
+          {/* ===== Feedback ===== */}
+          <div className="mb-4 h-6 text-center">
+            {feedback && (
+              <span
+                className={`text-sm font-bold ${feedback.isCorrect ? "text-success" : "text-danger"}`}
+              >
+                {feedback.isCorrect
+                  ? "Chính xác!"
+                  : currentMistakes + 1 < maxMistakes
+                  ? "Sai rồi, thử lại!"
+                  : `Sai rồi! Đáp án đúng: ${feedback.correctDisplay}`}
+              </span>
+            )}
+          </div>
+
+          {/* ===== Ô nhập + nút hành động — Kiểm tra là nút chính (to hơn), Gợi ý là phụ (secondary) ===== */}
+          <div className="mb-4 flex gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSubmitAnswer();
+              }}
+              disabled={!!feedback || isCurrentFinalized}
+              placeholder={isCurrentFinalized ? "Câu này đã hoàn thành" : "Nhập đáp án..."}
+              className="flex-1 rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-surface"
+            />
+            <button
+              onClick={handleSubmitAnswer}
+              disabled={!!feedback || isCurrentFinalized}
+              className="flex-[2] rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover disabled:opacity-50 sm:flex-none"
+            >
+              Kiểm tra
+            </button>
+            <button
+              onClick={handleShowHint}
+              disabled={isCurrentFinalized}
+              className="flex items-center gap-1 rounded-lg border border-secondary/40 bg-secondary/5 px-4 py-2.5 text-sm font-semibold text-secondary transition hover:bg-secondary/10 disabled:opacity-50"
+            >
+              <span aria-hidden="true">💡</span> Gợi ý
+            </button>
+          </div>
+
+          {hintOptions && hintOptions.length > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              {hintOptions.map((opt, i) => (
+                <button
+                  key={`${opt}-${i}`}
+                  onClick={() => handlePickHint(opt)}
+                  style={jpFontStyle(opt)}
+                  className="rounded-lg border border-border bg-background py-2 text-sm font-medium text-foreground transition hover:border-secondary hover:bg-secondary/5"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
           )}
         </div>
-
-        <div className="flex gap-2 mb-4">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSubmitAnswer();
-            }}
-            disabled={!!feedback || isCurrentFinalized}
-            placeholder={isCurrentFinalized ? "Câu này đã hoàn thành" : "Nhập đáp án..."}
-            className="border rounded px-3 py-2 flex-1 disabled:bg-gray-100"
-          />
-          <button
-            onClick={handleSubmitAnswer}
-            disabled={!!feedback || isCurrentFinalized}
-            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-          >
-            Kiểm tra
-          </button>
-          <button
-            onClick={handleShowHint}
-            disabled={isCurrentFinalized}
-            className="bg-gray-200 px-4 py-2 rounded disabled:opacity-50"
-          >
-            Gợi ý
-          </button>
-        </div>
-
-        {hintOptions && hintOptions.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {hintOptions.map((opt, i) => (
-              <button
-                key={`${opt}-${i}`}
-                onClick={() => handlePickHint(opt)}
-                className="border rounded py-2 text-sm hover:bg-blue-50"
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
 
   // ============================= PHASE: RESULT =============================
   return (
-    <div className="max-w-xl mx-auto p-6 text-center">
-      <h1 className="text-2xl font-bold mb-4">Kết quả</h1>
-      <p className="text-4xl font-bold mb-6">
-        {resultStats.correct}/{resultStats.total}
-      </p>
+    <div className="min-h-screen bg-surface">
+      <div className="mx-auto max-w-xl px-6 py-10 text-center">
+        <h1 className="mb-6 text-2xl font-extrabold tracking-tight text-foreground">Kết quả</h1>
 
-      <div className="text-left mb-6 max-h-96 overflow-y-auto">
-        {gameWords.map((w, idx) => {
-          const done = finalizedMap[idx];
-          if (!done) return null;
-          return (
-            <div
-              key={w.id}
-              className={`border rounded px-3 py-2 mb-2 ${done.isCorrect ? "border-green-300" : "border-red-300"}`}
-            >
-              <div className="text-sm text-gray-500">
-                {getFieldValue(w, questionField)} → {FIELD_LABELS[answerField]}
-              </div>
-              <div className="text-sm">
-                Bạn trả lời: <strong>{done.userAnswer || "(bỏ trống)"}</strong>{" "}
-                {done.isCorrect ? "✅" : `❌ (đúng: ${getFieldValue(w, answerField)})`}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        {/* ===== Vòng tròn điểm số — điểm nhấn chính: to hơn, viền dày, có nhãn phụ ===== */}
+        <div
+          className={`mx-auto mb-3 flex h-40 w-40 flex-col items-center justify-center rounded-full border-[6px] bg-background shadow-lg ${resultRingClass}`}
+        >
+          <span className={`text-4xl font-extrabold ${resultColorClass}`}>
+            {resultStats.correct}/{resultStats.total}
+          </span>
+          <span className="mt-1 text-xs font-bold uppercase tracking-wide text-foreground/40">
+            Đúng / Tổng
+          </span>
+        </div>
+        <p className={`mb-8 text-sm font-bold ${resultColorClass}`}>
+          {resultPercent}% chính xác
+        </p>
 
-      <div className="flex gap-3 justify-center">
-        <button onClick={handlePlaySame} className="bg-blue-600 text-white px-4 py-2 rounded">
-          Chơi lại ván này
-        </button>
-        <button onClick={handlePlayNew} className="bg-gray-200 px-4 py-2 rounded">
-          Chơi ván mới
-        </button>
+        {/* ===== Danh sách review từng câu — 2 cột: câu hỏi (trái) / đáp án (phải) ===== */}
+        <div className="mb-6 max-h-96 overflow-y-auto text-left">
+          {gameWords.map((w, idx) => {
+            const done = finalizedMap[idx];
+            if (!done) return null;
+            return (
+              <div
+                key={w.id}
+                className={`mb-2 flex items-center gap-3 rounded-xl border px-4 py-3 ${
+                  done.isCorrect ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5"
+                }`}
+              >
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                    done.isCorrect ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
+                  }`}
+                >
+                  {done.isCorrect ? "✓" : "✗"}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-foreground/45">
+                    {FIELD_LABELS[questionField]} → {FIELD_LABELS[answerField]}
+                  </p>
+                  <p
+                    className="mt-0.5 truncate font-bold text-foreground"
+                    style={jpFontStyle(getFieldValue(w, questionField))}
+                  >
+                    {getFieldValue(w, questionField)}
+                  </p>
+                </div>
+
+                <div className="shrink-0 text-right">
+                  <p
+                    className={`text-sm font-bold ${done.isCorrect ? "text-success" : "text-danger"}`}
+                    style={jpFontStyle(done.userAnswer)}
+                  >
+                    {done.userAnswer || "(bỏ trống)"}
+                  </p>
+                  {!done.isCorrect && (
+                    <p
+                      className="mt-0.5 text-xs text-foreground/50"
+                      style={jpFontStyle(getFieldValue(w, answerField))}
+                    >
+                      Đúng: {getFieldValue(w, answerField)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-center gap-3">
+          <button
+            onClick={handlePlaySame}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover"
+          >
+            Chơi lại ván này
+          </button>
+          <button
+            onClick={handlePlayNew}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground/70 transition hover:text-foreground"
+          >
+            Chơi ván mới
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -2,25 +2,65 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #3c3c3c;
+
+  /* Xanh dương — màu chủ đạo mới của app: nút hành động chính, logo, tiêu đề nhấn */
+  --primary: #2f6fed;
+  --primary-hover: #2558c7;
+
+  /* Xanh dương nhạt — hành động phụ, link, badge phụ (không đổi) */
+  --secondary: #1cb0f6;
+  --secondary-hover: #0f95d6;
+
+  /* MỚI: Xanh lá — dành RIÊNG cho ngữ nghĩa "đúng" trong Quiz (khớp correct.mp3).
+     Đây là giá trị --primary cũ, tách ra để không lẫn với màu chủ đạo mới.
+     Nếu code Quiz (alphabet/practice) đang dùng bg-primary cho màu "đúng",
+     cần đổi lại thành bg-success khi có file để sửa. */
+  --success: #58cc02;
+  --success-hover: #4caf00;
+
+  /* Đỏ — lỗi, trạng thái "sai" (khớp wrong.mp3 hiện có) */
+  --danger: #ff4b4b;
+  --danger-hover: #e63e3e;
+
+  /* Cam — cảnh báo thông tin (khớp khối cảnh báo "romaji trùng khác nghĩa" đã build) */
+  --warning: #ff9600;
+
+  /* Vàng — trạng thái chờ xác nhận (khớp khối "trùng thật, đè/giữ" đã build) */
+  --caution: #ffc800;
+
+  /* Nền phụ cho card/section, viền */
+  --surface: #f7f7f7;
+  --border: #e5e5e5;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-success: var(--success);
+  --color-success-hover: var(--success-hover);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-warning: var(--warning);
+  --color-caution: var(--caution);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --font-sans: var(--font-nunito);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Giữ trạng thái focus rõ ràng khi thao tác bằng bàn phím (accessibility) */
+:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }

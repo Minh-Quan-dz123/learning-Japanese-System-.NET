@@ -53,3 +53,4 @@ services:
 
 volumes:
   postgres_data:
+#MK của data ở supabase của japanese_db là: japanese_db123@QQV
