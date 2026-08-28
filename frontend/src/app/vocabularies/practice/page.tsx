@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -124,7 +124,7 @@ function buildHintOptions(
 
 type FinalizedAnswer = { userAnswer: string; isCorrect: boolean };
 
-export default function VocabularyPracticePage() {
+function PracticePageInner() {
   const { user, isLoading } = useAuth();
   const searchParams = useSearchParams();
 
@@ -881,5 +881,19 @@ export default function VocabularyPracticePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VocabularyPracticePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-surface">
+          <p className="text-sm text-foreground/50">Đang tải...</p>
+        </div>
+      }
+    >
+      <PracticePageInner />
+    </Suspense>
   );
 }
