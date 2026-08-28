@@ -50,7 +50,12 @@ public class AuthController : ControllerBase
         if (Request.Cookies.TryGetValue(RefreshCookieName, out var refreshTokenPlain) && !string.IsNullOrEmpty(refreshTokenPlain))
             await _authService.LogoutAsync(refreshTokenPlain, ct);
 
-        Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = "/api/auth" });
+        Response.Cookies.Delete(RefreshCookieName, new CookieOptions
+        {
+            Path = "/api/auth",
+            Secure = true,
+            SameSite = SameSiteMode.None // MỚI: phải khớp với lúc Set, không thì trình duyệt không nhận diện đúng cookie để xóa
+        });
         return NoContent();
     }
 
@@ -72,7 +77,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None,
             Path = "/api/auth",
             Expires = DateTimeOffset.UtcNow.AddDays(7)
         });

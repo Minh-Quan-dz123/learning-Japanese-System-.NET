@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,13 +51,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // MỚI: cho phép Frontend (Next.js, khác port) gọi API kèm cookie
+// builder.Services.AddCors(options =>
+// {
+//     options.AddPolicy("AllowFrontend", policy => policy
+//         .WithOrigins("http://localhost:3000") // đổi domain FE thật khi lên production
+//         .AllowAnyHeader()
+//         .AllowAnyMethod()
+//         .AllowCredentials()); // BẮT BUỘC để cookie refreshToken được gửi kèm request cross-origin
+// });
+var allowedOrigin = builder.Configuration["Cors:AllowedOrigin"]
+    ?? "http://localhost:3000"; // fallback khi chạy local, khỏi cần config gì thêm
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy => policy
-        .WithOrigins("http://localhost:3000") // đổi domain FE thật khi lên production
+        .WithOrigins(allowedOrigin)
         .AllowAnyHeader()
         .AllowAnyMethod()
-        .AllowCredentials()); // BẮT BUỘC để cookie refreshToken được gửi kèm request cross-origin
+        .AllowCredentials());
 });
 
 // Mới nữa
@@ -89,6 +101,24 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+// MỚI: xóa whitelist mặc định — cần thiết vì Render không có IP proxy cố định để khai báo trước.
+// An toàn vì container không thể bị gọi trực tiếp từ internet, chỉ proxy Render gọi vào được.
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
+// MỚI: tự động áp dụng migration còn thiếu lúc khởi động (production dùng Supabase không chạy tay dotnet ef được)
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
