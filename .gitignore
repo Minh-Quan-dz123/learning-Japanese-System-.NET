@@ -9,6 +9,7 @@ claude/
 backend/**/bin/
 backend/**/obj/
 *.user
+appsettings.Development.json
 
 # Node / Next.js
 frontend/node_modules/
@@ -24,6 +25,7 @@ ai_service/*.pyc
 .env
 .env.local
 appsettings.Development.json
+appsettings.json
 
 # OS
 .DS_Store

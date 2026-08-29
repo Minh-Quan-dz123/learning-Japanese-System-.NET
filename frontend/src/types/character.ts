@@ -31,3 +31,18 @@ export interface CharacterStatDto {
   wrongCount: number;
   wrongRate: number; // double từ C# — vẫn cần xác nhận là tỉ lệ 0..1 hay phần trăm 0..100 lúc test runtime
 }
+
+// thêm mới cho admin làm CRUD
+export interface CreateCharacterRequest {
+  char: string;
+  romaji: string;
+  type: CharacterType;
+  variantGroup: VariantGroup;
+}
+
+export interface UpdateCharacterRequest {
+  char: string;
+  romaji: string;
+  type: CharacterType;
+  variantGroup: VariantGroup;
+}

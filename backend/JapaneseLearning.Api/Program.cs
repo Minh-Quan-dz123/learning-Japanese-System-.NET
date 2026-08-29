@@ -50,15 +50,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// MỚI: cho phép Frontend (Next.js, khác port) gọi API kèm cookie
-// builder.Services.AddCors(options =>
-// {
-//     options.AddPolicy("AllowFrontend", policy => policy
-//         .WithOrigins("http://localhost:3000") // đổi domain FE thật khi lên production
-//         .AllowAnyHeader()
-//         .AllowAnyMethod()
-//         .AllowCredentials()); // BẮT BUỘC để cookie refreshToken được gửi kèm request cross-origin
-// });
 var allowedOrigin = builder.Configuration["Cors:AllowedOrigin"]
     ?? "http://localhost:3000"; // fallback khi chạy local, khỏi cần config gì thêm
 

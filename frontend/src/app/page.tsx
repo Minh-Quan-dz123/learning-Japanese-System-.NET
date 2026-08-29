@@ -45,11 +45,20 @@ const modules: ModuleInfo[] = [
   },
 ];
 
+// ← THÊM MỚI: module ảo cho Admin, tách riêng khỏi mảng `modules` cố định
+// vì cái này chỉ hiện có điều kiện (theo role), không phải danh sách tĩnh.
+const adminModule: ModuleInfo = {
+  title: "Quản lý bảng chữ cái",
+  glyph: "管",
+  description: "Thêm / sửa / xóa hiragana, katakana (chỉ Admin).",
+  href: "/admin/characters",
+  accent: "primary",
+};
+
 export default function HomePage() {
   const { user, isLoading, clearAuth } = useAuth();
   const router = useRouter();
 
-  // Guard: chưa đăng nhập thì đá về /login — không đổi so với bản trước.
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/login");
@@ -61,7 +70,6 @@ export default function HomePage() {
       await logout();
     } catch {
       // Kể cả API logout lỗi (VD mất mạng), vẫn dọn state phía FE
-      // để tránh user bị kẹt ở trạng thái "tưởng đã đăng xuất nhưng chưa".
     } finally {
       clearAuth();
       router.push("/login");
@@ -80,9 +88,13 @@ export default function HomePage() {
     return null;
   }
 
+  // ← THÊM MỚI: ghép thêm adminModule vào cuối danh sách nếu user là Admin,
+  // không sửa mảng `modules` gốc (giữ nó là hằng số cố định, tách biệt phần động theo role).
+  const visibleModules =
+    user.role === "Admin" ? [...modules, adminModule] : modules;
+
   return (
     <div className="min-h-screen bg-surface">
-      {/* Nav */}
       <nav className="border-b border-border bg-background">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
@@ -103,7 +115,6 @@ export default function HomePage() {
       </nav>
 
       <main className="mx-auto max-w-5xl px-6 py-10">
-        {/* Hero / lời chào */}
         <div className="mb-10">
           <p className="flex items-center gap-2 text-sm font-semibold text-secondary">
             Xin chào, {user.username}
@@ -119,9 +130,9 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Lưới module */}
+        {/* ← THAY ĐỔI: map qua `visibleModules` thay vì `modules` */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          {modules.map((mod) =>
+          {visibleModules.map((mod) =>
             mod.href ? (
               <Link
                 key={mod.title}
