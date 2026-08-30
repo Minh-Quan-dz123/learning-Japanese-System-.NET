@@ -873,6 +873,18 @@ export default function TopicDetailPage() {
               .charAt(0)
               .toUpperCase();
 
+            // Chữ CHÍNH hiển thị to — ưu tiên kanji > hiragana > katakana > romaji.
+            // Đây là field "đại diện" cho cả dòng, các field còn lại (nếu có dữ liệu)
+            // hiện thành chip nhỏ màu riêng bên cạnh (xem readingHiragana/readingKatakana).
+            const primaryText = word.kanji || word.hiragana || word.katakana || word.romaji;
+            // Chỉ hiện thành "chip" nhỏ nếu field đó có dữ liệu VÀ không trùng với chữ
+            // đang làm chữ chính (tránh lặp lại — VD không có kanji thì hiragana đã
+            // là chữ chính, không cần hiện lại chính nó làm chip nữa).
+            const readingHiragana =
+              word.hiragana && word.hiragana !== primaryText ? word.hiragana : null;
+            const readingKatakana =
+              word.katakana && word.katakana !== primaryText ? word.katakana : null;
+
             // --- Dòng đang SỬA — dải màu primary bên trái, dùng chung FieldInput ---
             if (editingId === word.id) {
               return (
@@ -887,6 +899,16 @@ export default function TopicDetailPage() {
                         label="Hiragana"
                         value={editForm.hiragana ?? ""}
                         onChange={(e) => setEditForm((p) => ({ ...p, hiragana: e.target.value }))}
+                      />
+                      <FieldInput
+                        label="Katakana"
+                        value={editForm.katakana ?? ""}
+                        onChange={(e) => setEditForm((p) => ({ ...p, katakana: e.target.value }))}
+                      />
+                      <FieldInput
+                        label="Kanji"
+                        value={editForm.kanji ?? ""}
+                        onChange={(e) => setEditForm((p) => ({ ...p, kanji: e.target.value }))}
                       />
                       <FieldInput
                         label="Romaji"
@@ -955,7 +977,7 @@ export default function TopicDetailPage() {
               );
             }
 
-            // --- Dòng bình thường — compact, bấm cả dòng để Sửa ---
+            // --- Dòng bình thường — compact, bấm cả dòng để Sửa, mỗi loại chữ 1 màu riêng ---
             return (
               <div
                 key={word.id}
@@ -979,16 +1001,33 @@ export default function TopicDetailPage() {
                   className="h-4 w-4 shrink-0 accent-primary"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {word.hiragana && <span>{word.hiragana} · </span>}
-                    {word.romaji}
+                  {/* Dòng 1: chữ chính (kanji > hiragana > katakana) to đen, kèm chip
+                      hiragana (xanh dương) / katakana (xanh lá) / romaji (xám nghiêng)
+                      cho các field còn lại — mỗi loại 1 màu để phân biệt nhanh bằng mắt. */}
+                  <p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                    <span className="truncate text-base font-bold text-foreground">
+                      {primaryText}
+                    </span>
+                    {readingHiragana && (
+                      <span className="shrink-0 text-xs font-semibold text-secondary">
+                        {readingHiragana}
+                      </span>
+                    )}
+                    {readingKatakana && (
+                      <span className="shrink-0 text-xs font-semibold text-success">
+                        {readingKatakana}
+                      </span>
+                    )}
+                    <span className="shrink-0 text-xs italic text-foreground/40">
+                      ({word.romaji})
+                    </span>
                     {word.note && (
-                      <span className="ml-2 truncate text-xs font-normal text-foreground/40">
+                      <span className="ml-1 shrink-0 truncate text-xs font-normal text-foreground/30">
                         {word.note}
                       </span>
                     )}
                   </p>
-                  {/* Ý nghĩa — làm nổi bật hơn trước (đậm + rõ hơn, thay vì mờ nhạt như cũ) */}
+                  {/* Dòng 2: ý nghĩa — giữ nguyên style cũ */}
                   <p className="truncate text-sm font-semibold text-foreground/80">
                     {word.meaning}
                   </p>

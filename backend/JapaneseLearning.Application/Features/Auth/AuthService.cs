@@ -16,6 +16,10 @@ public class AuthService : IAuthService
 
     private const int RefreshTokenExpiryDays = 7; // đã chốt 2026-08-23
 
+    // Giới hạn tối đa số phiên đăng nhập (refresh token) còn sống cùng lúc cho 1 user.
+    // Vượt quá thì tự động xóa (các) phiên CŨ NHẤT để nhường chỗ cho phiên mới.
+    private const int MaxActiveSessionsPerUser = 3;
+
     public AuthService(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
@@ -102,6 +106,19 @@ public class AuthService : IAuthService
 
     private async Task<(string AccessToken, string RefreshTokenPlain)> IssueTokensAsync(User user, CancellationToken ct)
     {
+        // Enforce giới hạn tối đa MaxActiveSessionsPerUser phiên sống cùng lúc.
+        // Dùng WHILE (không phải if) — vì tài khoản có thể đang dư SẴN nhiều hơn 1 token
+        // (VD tích lũy từ trước khi có tính năng này), if chỉ xóa được đúng 1 cái mỗi lần gọi
+        // nên không bao giờ dọn hết được, trong khi while xóa cho tới khi hết dư mới dừng.
+        // Áp dụng tự động cho cả Register/Login/Refresh vì cả 3 đều gọi hàm này.
+        var activeTokens = await _refreshTokenRepository.GetActiveByUserIdAsync(user.Id, ct);
+        while (activeTokens.Count >= MaxActiveSessionsPerUser)
+        {
+            var oldest = activeTokens[0]; // đã sắp xếp ExpiresAt tăng dần -> phần tử đầu là cũ nhất
+            await _refreshTokenRepository.RevokeAsync(oldest, ct);
+            activeTokens.RemoveAt(0); // cập nhật lại list trong bộ nhớ, không cần query lại DB
+        }
+
         var accessToken = _jwtTokenGenerator.GenerateAccessToken(user);
 
         // 64 byte ngẫu nhiên bằng RandomNumberGenerator (crypto-secure, KHÁC class Random thường

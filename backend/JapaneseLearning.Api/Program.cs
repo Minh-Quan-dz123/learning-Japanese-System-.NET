@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.HttpOverrides;
+using JapaneseLearning.Infrastructure.BackgroundServices;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,15 +25,15 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// MỚI: đăng ký AuthService (Application) + Bcrypt/JWT/Repository (Infrastructure)
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// MỚI: đọc section "Jwt" trong appsettings.json (xem phần E bên dưới) đổ vào JwtSettings
+// MỚI: chạy nền, tự dọn dẹp refresh_tokens hết hạn/đã revoke quá lâu (xem DECISIONS_LOG.md 2026-08-30)
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
+
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
     ?? throw new InvalidOperationException("Thiếu cấu hình Jwt trong appsettings.json");
 
-// MỚI: khai báo cách ASP.NET xác thực JWT gửi lên qua header Authorization: Bearer <token>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
