@@ -165,6 +165,15 @@ export default function TopicsPage() {
           </span>
 
           <div className="relative">
+            <Link
+              href="/"
+              className="group mb-4 inline-flex items-center gap-2 text-sm font-semibold text-foreground/60 transition hover:text-primary"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-base transition group-hover:border-primary group-hover:bg-primary group-hover:text-white">
+                ←
+              </span>
+              Trang chủ
+            </Link>
             <p className="text-xs font-bold uppercase tracking-wider text-secondary">
               Module 3
             </p>

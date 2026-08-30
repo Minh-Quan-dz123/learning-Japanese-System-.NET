@@ -300,6 +300,15 @@ export default function AlphabetPage() {
     return (
       <div className="min-h-screen bg-surface">
         <div className="mx-auto max-w-3xl px-6 py-10">
+          <Link
+            href="/"
+            className="group mb-4 inline-flex items-center gap-2 text-sm font-semibold text-foreground/60 transition hover:text-primary"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-base transition group-hover:border-primary group-hover:bg-primary group-hover:text-white">
+              ←
+            </span>
+            Trang chủ
+          </Link>
           <p className="text-xs font-bold uppercase tracking-wider text-secondary">
             Module 1
           </p>
@@ -549,6 +558,15 @@ export default function AlphabetPage() {
   return (
     <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-xl px-6 py-16 text-center">
+        <Link
+          href="/"
+          className="group mb-4 inline-flex items-center gap-2 text-sm font-semibold text-foreground/60 transition hover:text-primary"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-base transition group-hover:border-primary group-hover:bg-primary group-hover:text-white">
+            ←
+          </span>
+          Trang chủ
+        </Link>
         <p className="text-xs font-bold uppercase tracking-wider text-secondary">Kết quả</p>
         <h1 className="mt-1 text-2xl font-extrabold text-foreground">
           Hoàn thành lượt luyện tập

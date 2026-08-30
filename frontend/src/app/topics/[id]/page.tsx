@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +42,19 @@ const ACCENT_BADGE_TEXT = ["text-primary", "text-secondary", "text-success"];
 function accentIndex(index: number) {
   return index % ACCENT_BADGE_BG.length;
 }
+
+// Các kiểu sắp xếp cho danh sách từ vựng — CHỈ áp dụng ở Frontend (client-side),
+// không gọi lại API, không ảnh hưởng thứ tự lưu trong state `words` gốc.
+// Mặc định "updatedDesc" khớp với thứ tự Backend đã trả sẵn (sửa gần nhất lên đầu),
+// nên lúc mới load trang không cần sort lại gì cả.
+type SortOption = "updatedDesc" | "updatedAsc" | "romajiAsc" | "romajiDesc";
+
+const SORT_LABELS: Record<SortOption, string> = {
+  updatedDesc: "Sửa gần đây nhất",
+  updatedAsc: "Sửa lâu nhất",
+  romajiAsc: "Romaji A → Z",
+  romajiDesc: "Romaji Z → A",
+};
 
 // Dò xem có từ nào trong `words` (đã tải sẵn của chủ đề đang xem) bị trùng ROMAJI
 // nhưng NGHĨA lại khác hẳn không. Đây CHỈ là cảnh báo phụ ở Frontend, không chặn tạo,
@@ -104,10 +117,15 @@ export default function TopicDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
+  // Tiêu chí sắp xếp danh sách đang hiển thị — thuần UI, không đụng state `words` gốc.
+  const [sortOption, setSortOption] = useState<SortOption>("updatedDesc");
+
   const [form, setForm] = useState<CreateVocabularyRequest>({ ...emptyForm, topicId });
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Đóng/mở khung "Thêm từ mới" — mặc định MỞ (giữ đúng hành vi hiện tại lúc mới vào trang)
+  const [showAddForm, setShowAddForm] = useState(true);
 
   const [duplicatePrompt, setDuplicatePrompt] = useState<{ existingId: string; existingSummary: string } | null>(null);
 
@@ -193,6 +211,29 @@ export default function TopicDetailPage() {
     e.preventDefault();
     loadWords(search);
   }
+
+  // Mảng CHỈ dùng để hiển thị — sort lại từ `words` gốc theo `sortOption`,
+  // không sửa/ghi đè `words` (tránh làm hỏng các chỗ khác đang dựa vào thứ tự gốc
+  // của `words`, ví dụ setWords((prev) => [created, ...prev]) lúc thêm từ mới).
+  const sortedWords = useMemo(() => {
+    const copy = [...words];
+    switch (sortOption) {
+      case "updatedDesc":
+        return copy.sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+      case "updatedAsc":
+        return copy.sort(
+          (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+        );
+      case "romajiAsc":
+        return copy.sort((a, b) => a.romaji.localeCompare(b.romaji));
+      case "romajiDesc":
+        return copy.sort((a, b) => b.romaji.localeCompare(a.romaji));
+      default:
+        return copy;
+    }
+  }, [words, sortOption]);
 
   function updateFormField(field: keyof CreateVocabularyRequest, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -624,59 +665,74 @@ export default function TopicDetailPage() {
           </span>
         </Link>
 
-        {/* ===== Form thêm từ mới ===== */}
-        <form
-          onSubmit={handleAddWord}
-          className="mb-6 rounded-2xl border border-border bg-background p-5 shadow-sm"
-        >
-          <h2 className="mb-4 font-bold text-foreground">Thêm từ mới</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <FieldInput
-              label="Hiragana"
-              value={form.hiragana ?? ""}
-              onChange={(e) => updateFormField("hiragana", e.target.value)}
-            />
-            <FieldInput
-              label="Katakana"
-              value={form.katakana ?? ""}
-              onChange={(e) => updateFormField("katakana", e.target.value)}
-            />
-            <FieldInput
-              label="Kanji"
-              value={form.kanji ?? ""}
-              onChange={(e) => updateFormField("kanji", e.target.value)}
-            />
-            <FieldInput
-              label="Romaji"
-              required
-              value={form.romaji}
-              onChange={(e) => updateFormField("romaji", e.target.value)}
-              error={fieldErrors.romaji}
-            />
-            <FieldInput
-              label="Ý nghĩa (nhiều nghĩa cách nhau bởi ; hoặc /)"
-              required
-              className="col-span-2"
-              value={form.meaning}
-              onChange={(e) => updateFormField("meaning", e.target.value)}
-              error={fieldErrors.meaning}
-            />
-            <FieldInput
-              label="Ghi chú"
-              className="col-span-2"
-              value={form.note ?? ""}
-              onChange={(e) => updateFormField("note", e.target.value)}
-            />
-          </div>
-          {formError && <p className="mt-3 text-sm text-danger">{formError}</p>}
+        {/* ===== Form thêm từ mới — có thể đóng/mở ===== */}
+        <div className="mb-6 rounded-2xl border border-border bg-background shadow-sm">
           <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-4 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover disabled:opacity-50"
+            type="button"
+            onClick={() => setShowAddForm((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
           >
-            {isSubmitting ? "Đang kiểm tra..." : "Thêm từ"}
+            <h2 className="font-bold text-foreground">Thêm từ mới</h2>
+            <span
+              className={`text-sm text-foreground/40 transition-transform ${
+                showAddForm ? "rotate-180" : ""
+              }`}
+            >
+              ▼
+            </span>
           </button>
-        </form>
+
+          {showAddForm && (
+            <form onSubmit={handleAddWord} className="border-t border-border p-5 pt-4">
+              <div className="grid grid-cols-2 gap-3">
+                <FieldInput
+                  label="Hiragana"
+                  value={form.hiragana ?? ""}
+                  onChange={(e) => updateFormField("hiragana", e.target.value)}
+                />
+                <FieldInput
+                  label="Katakana"
+                  value={form.katakana ?? ""}
+                  onChange={(e) => updateFormField("katakana", e.target.value)}
+                />
+                <FieldInput
+                  label="Kanji"
+                  value={form.kanji ?? ""}
+                  onChange={(e) => updateFormField("kanji", e.target.value)}
+                />
+                <FieldInput
+                  label="Romaji"
+                  required
+                  value={form.romaji}
+                  onChange={(e) => updateFormField("romaji", e.target.value)}
+                  error={fieldErrors.romaji}
+                />
+                <FieldInput
+                  label="Ý nghĩa (nhiều nghĩa cách nhau bởi ; hoặc /)"
+                  required
+                  className="col-span-2"
+                  value={form.meaning}
+                  onChange={(e) => updateFormField("meaning", e.target.value)}
+                  error={fieldErrors.meaning}
+                />
+                <FieldInput
+                  label="Ghi chú"
+                  className="col-span-2"
+                  value={form.note ?? ""}
+                  onChange={(e) => updateFormField("note", e.target.value)}
+                />
+              </div>
+              {formError && <p className="mt-3 text-sm text-danger">{formError}</p>}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="mt-4 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-hover disabled:opacity-50"
+              >
+                {isSubmitting ? "Đang kiểm tra..." : "Thêm từ"}
+              </button>
+            </form>
+          )}
+        </div>
 
         {/* Khối trùng thật — chặn, hỏi đè/giữ */}
         {duplicatePrompt && (
@@ -745,6 +801,25 @@ export default function TopicDetailPage() {
           </button>
         </form>
 
+        {/* ===== Sắp xếp danh sách (mới thêm) — thuần Frontend, không gọi lại API ===== */}
+        <div className="mb-4 flex items-center justify-end gap-2">
+          <label htmlFor="sort-select" className="text-xs font-medium text-foreground/50">
+            Sắp xếp:
+          </label>
+          <select
+            id="sort-select"
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as SortOption)}
+            className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+          >
+            {(Object.keys(SORT_LABELS) as SortOption[]).map((option) => (
+              <option key={option} value={option}>
+                {SORT_LABELS[option]}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* ===== Toolbar di chuyển nhiều từ ===== */}
         {selectedIds.size > 0 && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-secondary/40 bg-secondary/5 p-4">
@@ -792,7 +867,7 @@ export default function TopicDetailPage() {
         )}
 
         <div className="flex flex-col gap-1.5">
-          {words.map((word, index) => {
+          {sortedWords.map((word, index) => {
             const accent = accentIndex(index);
             const avatarChar = (word.hiragana || word.katakana || word.kanji || word.romaji)
               .charAt(0)
@@ -887,6 +962,10 @@ export default function TopicDetailPage() {
                 onClick={() => startEdit(word)}
                 className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 shadow-sm transition hover:-translate-y-px hover:border-primary/40 hover:shadow-md"
               >
+                {/* STT — số thứ tự theo danh sách đang hiển thị (đã sort), không cần offset trang vì trang này không phân trang thật */}
+                <span className="w-5 shrink-0 text-right text-xs font-medium text-foreground/35">
+                  {index + 1}
+                </span>
                 <span
                   className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ACCENT_BADGE_BG[accent]} ${ACCENT_BADGE_TEXT[accent]}`}
                 >
@@ -909,7 +988,10 @@ export default function TopicDetailPage() {
                       </span>
                     )}
                   </p>
-                  <p className="truncate text-xs text-foreground/55">{word.meaning}</p>
+                  {/* Ý nghĩa — làm nổi bật hơn trước (đậm + rõ hơn, thay vì mờ nhạt như cũ) */}
+                  <p className="truncate text-sm font-semibold text-foreground/80">
+                    {word.meaning}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {(word.hiragana || word.katakana || word.kanji) && (
